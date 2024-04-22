@@ -17,26 +17,31 @@ public class AnimalsController : ControllerBase
     }
     
     [HttpGet]
-    public IActionResult GetAnimals()
+    public IActionResult GetAnimals(string? orderBy)
     {
-        // Start connection to database
+        orderBy ??= "name";
+
+        var values = new List<string> { "name", "description", "category", "area" };
+
+        if (!values.Contains(orderBy))
+            return NotFound($"Parameter '{orderBy}' does not exist in table Animal");
+
         using var connection = new SqlConnection(_configuration.GetConnectionString("Default"));
         connection.Open();
 
-        // Define command
-        using var command = new SqlCommand();
+        var command = new SqlCommand();
         command.Connection = connection;
-        command.CommandText = "SELECT * FROM Animal";
-        
-        // Run command QUERY
+        command.CommandText = $"SELECT * FROM Animal ORDER BY {orderBy} ASC";
+
         var reader = command.ExecuteReader();
-        
-        List<Animal> animals = new List<Animal>();
-        int idAnimalOrdinal = reader.GetOrdinal("IdAnimal");
-        int nameOrdinal = reader.GetOrdinal("Name");
-        int descOrdinal = reader.GetOrdinal("Description");
-        int catOrdinal = reader.GetOrdinal("Category");
-        int areaOrdinal = reader.GetOrdinal("Area");
+
+        var animals = new List<Animal>();
+
+        var idAnimalOrdinal = reader.GetOrdinal("IdAnimal");
+        var nameOrdinal = reader.GetOrdinal("Name");
+        var descriptionOrdinal = reader.GetOrdinal("Description");
+        var categoryOrdinal = reader.GetOrdinal("Category");
+        var areaOrdinal = reader.GetOrdinal("Area");
         
         while (reader.Read())
         {
@@ -44,15 +49,13 @@ public class AnimalsController : ControllerBase
             {
                 IdAnimal = reader.GetInt32(idAnimalOrdinal),
                 Name = reader.GetString(nameOrdinal),
-                Description = reader.GetString(descOrdinal),
-                Category = reader.GetString(catOrdinal),
+                Description = reader.GetString(descriptionOrdinal),
+                Category = reader.GetString(categoryOrdinal),
                 Area = reader.GetString(areaOrdinal)
             });
-            
         }
 
-        // tak powinno byc
-        // var animals = _repository.GetAnimals();
+        // _repository.AddAnimal(addAnimal); 
         
         return Ok(animals);
     }
@@ -60,27 +63,63 @@ public class AnimalsController : ControllerBase
     [HttpPost]
     public IActionResult AddAnimal(AddAnimal addAnimal)
     {
-        // Start connection to database
         using var connection = new SqlConnection(_configuration.GetConnectionString("Default"));
         connection.Open();
 
-        // Define command
-        using var command = new SqlCommand();
+        var command = new SqlCommand();
         command.Connection = connection;
-        command.CommandText =
-            "INSERT INTO Animal VALUES(@animalName, @animalDescription, @animalCategory, @animalArea)";
+        command.CommandText = "INSERT INTO Animal VALUES (@animalName, @description, @category, @area)";
         command.Parameters.AddWithValue("@animalName", addAnimal.Name);
-        command.Parameters.AddWithValue("@animalDescription", addAnimal.Description);
-        command.Parameters.AddWithValue("@animalCategory", addAnimal.Category);
-        command.Parameters.AddWithValue("@animalArea", addAnimal.Area);
-        
-        // Execute Command
-        command.ExecuteNonQuery();
+        command.Parameters.AddWithValue("@description", addAnimal.Description);
+        command.Parameters.AddWithValue("@category", addAnimal.Category);
+        command.Parameters.AddWithValue("@area", addAnimal.Area);
 
-        // Tak powinno być
-        // _repository.AddAnimal(addAnimal);
+        command.ExecuteNonQuery();
         
         return Created("", null);
+    }
+
+    [HttpPut("{idAnimal}")]
+    public IActionResult UpdateAnimal(int idAnimal, AddAnimal addAnimal)
+    {
+        using var connection = new SqlConnection(_configuration.GetConnectionString("Default"));
+        connection.Open();
+
+        var command = new SqlCommand();
+        command.Connection = connection;
+        command.CommandText = $"SELECT * FROM Animal WHERE IdAnimal = {idAnimal}";
+        if (command.ExecuteScalar() == null)
+            return NotFound($"Animal with id = '{idAnimal}' not found");
+
+        command.CommandText = $"UPDATE Animal SET Name = @animalName, Description = @description, " +
+                              $"Category = @category, Area = @area WHERE IdAnimal = {idAnimal}";
+        command.Parameters.AddWithValue("@animalName", addAnimal.Name);
+        command.Parameters.AddWithValue("@description", addAnimal.Description);
+        command.Parameters.AddWithValue("@category", addAnimal.Category);
+        command.Parameters.AddWithValue("@area", addAnimal.Area);
+
+        command.ExecuteNonQuery();
+
+        return Ok($"Animal with id = '{idAnimal}' has been updated");
+    }
+
+    [HttpDelete("{idAnimal}")]
+    public IActionResult DeleteAnimal(int idAnimal)
+    {
+        using var connection = new SqlConnection(_configuration.GetConnectionString("Default"));
+        connection.Open();
+
+        var command = new SqlCommand();
+        command.Connection = connection;
+        command.CommandText = $"SELECT * FROM Animal WHERE IdAnimal = {idAnimal}";
+        if (command.ExecuteScalar() == null)
+            return NotFound($"Animal with id = '{idAnimal}' not found");
+
+        command.CommandText = $"DELETE FROM Animal WHERE IdAnimal = {idAnimal}";
+
+        command.ExecuteNonQuery();
+
+        return Ok($"Successfully deleted animal with id = '{idAnimal}'");
     }
     
 }
